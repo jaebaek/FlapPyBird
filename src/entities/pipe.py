@@ -29,9 +29,8 @@ class Pipes(Entity):
         self.spawn_initial_pipes()
 
     def tick(self) -> None:
-        if self.can_spawn_pipes():
-            self.spawn_new_pipes()
         self.remove_old_pipes()
+        self.spawn_new_pipes()
 
         for up_pipe, low_pipe in zip(self.upper, self.lower):
             up_pipe.tick()
@@ -49,8 +48,18 @@ class Pipes(Entity):
         return self.config.window.width - (last.x + last.w) > last.w * 2.5
 
     def spawn_new_pipes(self):
+        if len(self.lower) == 2:
+            return
+        last = self.upper[-1]
+        if not last:
+            self.upper = []
+            self.lower = []
+            self.spawn_initial_pipes()
+            return
         # add new pipe when first pipe is about to touch left of screen
         upper, lower = self.make_random_pipes()
+        upper.x = last.x + last.w * 3.5
+        lower.x = last.x + last.w * 3.5
         self.upper.append(upper)
         self.lower.append(lower)
 

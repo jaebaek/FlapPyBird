@@ -2,8 +2,10 @@ import asyncio
 import sys
 
 import pygame
+from numpy.random import get_state
 from pygame.locals import K_ESCAPE, K_SPACE, K_UP, KEYDOWN, QUIT
 
+from . import agent
 from .entities import (
     Background,
     Floor,
@@ -19,6 +21,7 @@ from .utils import GameConfig, Images, Sounds, Window
 
 class Flappy:
     def __init__(self):
+        self.agent = agent.Agent()
         pygame.init()
         pygame.display.set_caption("Flappy Bird")
         window = Window(288, 512)
@@ -86,17 +89,17 @@ class Flappy:
         self.score.reset()
         self.player.set_mode(PlayerMode.NORMAL)
 
+        reward = 0
         while True:
-            if self.player.collided(self.pipes, self.floor):
-                return
+            state = self.get_state()
+            action = self.agent.take_action(state)
 
-            for i, pipe in enumerate(self.pipes.upper):
-                if self.player.crossed(pipe):
-                    self.score.add()
+            reward_updated = False
+            collided = False
 
             for event in pygame.event.get():
                 self.check_quit_event(event)
-                if self.is_tap_event(event):
+                if action == 1: # self.is_tap_event(event):
                     self.player.flap()
 
             self.background.tick()
@@ -105,9 +108,33 @@ class Flappy:
             self.score.tick()
             self.player.tick()
 
+            if self.player.collided(self.pipes, self.floor):
+                reward = -0.5
+                reward_updated = True
+                collided = True
+
+            for i, pipe in enumerate(self.pipes.upper):
+                if self.player.crossed(pipe):
+                    reward = 0.05
+                    reward_updated = True
+                    self.score.add()
+
+            if not reward_updated:
+                reward = 0.0025
+
+            next_state = self.get_state()
+            self.agent.store_transition(state, action, reward, next_state, collided)
+            self.agent.replay()
+
+            if collided:
+                return
+
             pygame.display.update()
             await asyncio.sleep(0)
             self.config.tick()
+
+    def get_state(self):
+        return [self.player.y, self.pipes.lower[0].x, self.pipes.lower[0].y, self.pipes.lower[1].x, self.pipes.lower[1].y]
 
     async def game_over(self):
         """crashes the player down and shows gameover image"""
